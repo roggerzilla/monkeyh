@@ -39,9 +39,9 @@ if not bot:
 # LOWER 'priority_boost' values indicate HIGHER priority.
 # Make sure this POINT_PACKAGES definition is synchronized with points_handlers.py in your bot
 POINT_PACKAGES = {
-    "p200": {"label": "500 points", "amount": 399, "points": 500, "priority_boost": 1},  # Normal Priority
-    "p500": {"label": "2000 points", "amount": 999, "points": 2000, "priority_boost": 1},  # High Priority
-    "p1000": {"label": "5000 points", "amount": 1999, "points": 5000, "priority_boost": 1} # Very High Priority
+    "p200": {"label": "2000 points", "amount": 399, "points": 2000, "priority_boost": 1},  # Normal Priority
+    "p500": {"label": "5000 points", "amount": 999, "points": 5000, "priority_boost": 1},  # High Priority
+    "p1000": {"label": "12000 points", "amount": 1999, "points": 12000, "priority_boost": 1} # Very High Priority
 }
 
 @app.post("/crear-sesion")
@@ -82,8 +82,8 @@ async def crear_sesion(request: Request):
                 "quantity": 1
             }],
             mode="payment",
-            success_url="https://t.me/monkeyvideosbot",  # Review this URL. You could use a generic one or the bot itself.
-            cancel_url="https://t.me/monkeyvideosbot",   # Review this URL.
+            success_url="https://t.me/monkeyhentaiBot",  # Review this URL. You could use a generic one or the bot itself.
+            cancel_url="https://t.me/monkeyhentaiBot",   # Review this URL.
             metadata={
                 "telegram_user_id": user_id,
                 "package_id": paquete_id,
