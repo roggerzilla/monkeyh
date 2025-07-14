@@ -1,4 +1,3 @@
-#stripe_server
 from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import JSONResponse
 import stripe
@@ -39,10 +38,14 @@ if not bot:
 # LOWER 'priority_boost' values indicate HIGHER priority.
 # Make sure this POINT_PACKAGES definition is synchronized with points_handlers.py in your bot
 POINT_PACKAGES = {
-    "p200": {"label": "2000 points", "amount": 399, "points": 2000, "priority_boost": 1},  # Normal Priority
-    "p500": {"label": "5000 points", "amount": 999, "points": 5000, "priority_boost": 1},  # High Priority
+    "p200": {"label": "2000 points", "amount": 399, "points": 2000, "priority_boost": 1},   # Normal Priority
+    "p500": {"label": "5000 points", "amount": 999, "points": 5000, "priority_boost": 1},   # High Priority
     "p1000": {"label": "12000 points", "amount": 1999, "points": 12000, "priority_boost": 1} # Very High Priority
 }
+
+# Define el identificador único para este proyecto.
+# Esto es crucial para el filtrado de webhooks.
+PROJECT_IDENTIFIER = "monkeyhentai" # <--- IDENTIFICADOR ÚNICO PARA ESTE PROYECTO
 
 @app.post("/crear-sesion")
 async def crear_sesion(request: Request):
@@ -82,13 +85,14 @@ async def crear_sesion(request: Request):
                 "quantity": 1
             }],
             mode="payment",
-            success_url="https://t.me/monkeyhentaiBot",  # Review this URL. You could use a generic one or the bot itself.
-            cancel_url="https://t.me/monkeyhentaiBot",   # Review this URL.
+            success_url="https://t.me/monkeyhentaiBot",   # URL de éxito para este bot
+            cancel_url="https://t.me/monkeyhentaiBot",    # URL de cancelación para este bot
             metadata={
                 "telegram_user_id": user_id,
                 "package_id": paquete_id,
                 "points_awarded": paquete["points"], # Also useful for the webhook
-                "priority_boost": priority_boost # ⬅️ We pass the priority_boost in the metadata
+                "priority_boost": priority_boost,    # ⬅️ We pass the priority_boost in the metadata
+                "project": PROJECT_IDENTIFIER        # <--- AÑADIDO: Identificador del proyecto
             }
         )
         logging.info(f"Stripe session created for user {user_id}, package {paquete_id}. URL: {session.url}")
@@ -114,6 +118,18 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None, 
         logging.error(f"Stripe webhook payload processing error: {e}")
         raise HTTPException(status_code=400, detail="Invalid payload")
     
+    # --- INICIO DE LA LÓGICA DE FILTRADO POR METADATA ---
+    # Si el evento es de tipo 'checkout.session.completed', verificamos el metadata 'project'.
+    # Si el evento no tiene el metadata 'project' o no coincide con este backend, lo ignoramos.
+    if event["type"] == "checkout.session.completed":
+        session_metadata = event["data"]["object"].get("metadata", {})
+        event_project = session_metadata.get("project")
+
+        if event_project != PROJECT_IDENTIFIER:
+            logging.info(f"Webhook received for project '{event_project}', but this backend is '{PROJECT_IDENTIFIER}'. Ignoring event.")
+            return JSONResponse(status_code=200, content={"status": "ignored", "reason": "project_mismatch"})
+    # --- FIN DE LA LÓGICA DE FILTRADO POR METADATA ---
+
     # Handle checkout session completed event
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
@@ -147,7 +163,8 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None, 
         if user_id is not None and package_id in POINT_PACKAGES:
             try:
                 # Update user points
-                database.update_user_points(user_id, points_awarded)
+                # Asegúrate de que tu database.py para Monkeyhentai usa la tabla correcta (ej. users_h)
+                database.update_user_points(user_id, points_awarded) 
                 logging.info(f"User {user_id} received {points_awarded} points for Stripe purchase.")
 
                 # ⬅️ Update user priority
