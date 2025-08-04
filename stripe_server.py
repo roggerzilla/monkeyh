@@ -45,7 +45,7 @@ POINT_PACKAGES = {
 
 # Define el identificador único para este proyecto.
 # Esto es crucial para el filtrado de webhooks.
-PROJECT_IDENTIFIER = "monkeyhentai" # <--- IDENTIFICADOR ÚNICO PARA ESTE PROYECTO
+PROJECT_IDENTIFIER = "monkeynudesbot" # <--- IDENTIFICADOR ÚNICO PARA ESTE PROYECTO
 
 @app.post("/crear-sesion")
 async def crear_sesion(request: Request):
@@ -54,15 +54,15 @@ async def crear_sesion(request: Request):
     Called from your Telegram bot.
     """
     data = await request.json()
-    user_id = str(data.get("telegram_user_id"))
+    id = str(data.get("telegram_id"))
     paquete_id = data.get("paquete_id")
     # ⬅️ We receive the priority_boost from the bot
     priority_boost = data.get("priority_boost") 
 
     # Validation
-    if not user_id or paquete_id not in POINT_PACKAGES:
-        logging.error(f"Invalid data in /crear-sesion: user_id={user_id}, paquete_id={paquete_id}")
-        return JSONResponse(status_code=400, content={"error": "Invalid data: incorrect user_id or package_id."})
+    if not id or paquete_id not in POINT_PACKAGES:
+        logging.error(f"Invalid data in /crear-sesion: id={id}, paquete_id={paquete_id}")
+        return JSONResponse(status_code=400, content={"error": "Invalid data: incorrect id or package_id."})
     
     # Validate that priority_boost is a valid integer if sent
     if priority_boost is not None and not isinstance(priority_boost, int):
@@ -85,20 +85,20 @@ async def crear_sesion(request: Request):
                 "quantity": 1
             }],
             mode="payment",
-            success_url="https://t.me/monkeyhentaiBot",   # URL de éxito para este bot
-            cancel_url="https://t.me/monkeyhentaiBot",    # URL de cancelación para este bot
+            success_url="https://t.me/monkeynudesbot",   # URL de éxito para este bot
+            cancel_url="https://t.me/monkeynudesbot",    # URL de cancelación para este bot
             metadata={
-                "telegram_user_id": user_id,
+                "telegram_id": id,
                 "package_id": paquete_id,
                 "points_awarded": paquete["points"], # Also useful for the webhook
                 "priority_boost": priority_boost,    # ⬅️ We pass the priority_boost in the metadata
                 "project": PROJECT_IDENTIFIER        # <--- AÑADIDO: Identificador del proyecto
             }
         )
-        logging.info(f"Stripe session created for user {user_id}, package {paquete_id}. URL: {session.url}")
+        logging.info(f"Stripe session created for user {id}, package {paquete_id}. URL: {session.url}")
         return {"url": session.url}
     except Exception as e:
-        logging.error(f"Error creating Stripe session for user {user_id}, package {paquete_id}: {e}", exc_info=True)
+        logging.error(f"Error creating Stripe session for user {id}, package {paquete_id}: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": f"Internal error creating session: {str(e)}"})
 
 @app.post("/webhook/stripe")
@@ -134,17 +134,17 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None, 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
         metadata = session.get("metadata", {})
-        user_id_str = metadata.get("telegram_user_id") # Read as string
+        id_str = metadata.get("telegram_id") # Read as string
         package_id = metadata.get("package_id")
         points_awarded = metadata.get("points_awarded") # Points to award
         priority_boost = metadata.get("priority_boost") # ⬅️ Retrieve the priority_boost
 
-        # Safely convert user_id to int
+        # Safely convert id to int
         try:
-            user_id = int(user_id_str)
+            id = int(id_str)
         except (ValueError, TypeError):
-            logging.error(f"Webhook: Invalid or missing user_id in metadata: {user_id_str}")
-            return JSONResponse(status_code=400, content={"status": "error", "message": "Invalid user_id in metadata"})
+            logging.error(f"Webhook: Invalid or missing id in metadata: {id_str}")
+            return JSONResponse(status_code=400, content={"status": "error", "message": "Invalid id in metadata"})
 
         # Safely convert points_awarded to int
         try:
@@ -160,34 +160,34 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None, 
             logging.warning(f"Webhook: Invalid or missing priority_boost in metadata: {priority_boost}. Using default priority (2).")
             priority_boost = 2 # Use default priority if it cannot be converted
 
-        if user_id is not None and package_id in POINT_PACKAGES:
+        if id is not None and package_id in POINT_PACKAGES:
             try:
                 # Update user points
-                # Asegúrate de que tu database.py para Monkeyhentai usa la tabla correcta (ej. users_h)
-                database.update_user_points(user_id, points_awarded) 
-                logging.info(f"User {user_id} received {points_awarded} points for Stripe purchase.")
+                # Asegúrate de que tu database.py para Monkeyhentai usa la tabla correcta (ej. users_image)
+                database.update_user_points(id, points_awarded) 
+                logging.info(f"User {id} received {points_awarded} points for Stripe purchase.")
 
                 # ⬅️ Update user priority
                 # We only update if the new priority is "better" (numerically lower)
-                database.update_user_priority(user_id, priority_boost)
-                logging.info(f"User {user_id} priority updated to {priority_boost} (if better).")
+                database.update_user_priority(id, priority_boost)
+                logging.info(f"User {id} priority updated to {priority_boost} (if better).")
 
                 # Send confirmation message to Telegram user
                 if bot: # Only try to send if the bot was initialized correctly
                     try:
                         await bot.send_message(
-                            chat_id=user_id,
+                            chat_id=id,
                             text=f"🎉 **Recharge successful!** <b>{points_awarded}</b> points have been added to your account. Your queue priority is now <b>{priority_boost}</b> (0=Highest).",
                             parse_mode="HTML"
                         )
                     except Exception as e:
-                        logging.error(f"Error sending Telegram confirmation message for {user_id}: {e}")
+                        logging.error(f"Error sending Telegram confirmation message for {id}: {e}")
                 else:
                     logging.warning("Warning: Telegram bot not initialized in Stripe backend (TOKEN missing?). Could not send confirmation.")
             except Exception as e:
-                logging.error(f"Error updating points/priority or sending confirmation for {user_id}: {e}", exc_info=True)
+                logging.error(f"Error updating points/priority or sending confirmation for {id}: {e}", exc_info=True)
         else:
-            logging.warning(f"Webhook received but incomplete or invalid metadata: user_id={user_id_str}, package_id={package_id}")
+            logging.warning(f"Webhook received but incomplete or invalid metadata: id={id_str}, package_id={package_id}")
 
     # You can handle other Stripe event types here if needed
     # elif event["type"] == "payment_intent.succeeded":
