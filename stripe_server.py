@@ -53,12 +53,13 @@ async def crear_sesion(request: Request):
     Endpoint to create a Stripe checkout session.
     Called from your Telegram bot.
     """
+    
     data = await request.json()
     id = str(data.get("telegram_id"))
     paquete_id = data.get("paquete_id")
     # ⬅️ We receive the priority_boost from the bot
     priority_boost = data.get("priority_boost") 
-
+    logging.info(f"Received payload from bot: {data}")
     # Validation
     if not id or paquete_id not in POINT_PACKAGES:
         logging.error(f"Invalid data in /crear-sesion: id={id}, paquete_id={paquete_id}")
